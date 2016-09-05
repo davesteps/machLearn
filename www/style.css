@@ -1,0 +1,57 @@
+div.busy { 
+  position:absolute;
+  top: 40%;
+  left: 50%;
+  margin-top: -100px;
+  margin-left: -50px;
+  display:none;
+  background: rgba(230, 230, 230, .8);
+  text-align: center;
+  padding-top: 20px;
+  padding-left: 30px;
+  padding-bottom: 40px;
+  padding-right: 30px;
+  border-radius: 5px;
+}
+
+
+div.foot { 
+  position:absolute;
+  bottom: 0%;
+  left: 1%;
+  text-align: center;
+  padding-top: 0px;
+  padding-left: 30px;
+  padding-bottom: 0px;
+  padding-right: 30px;
+  border-radius: 5px;
+
+}
+
+div.container
+{
+    width:840px;
+    height:317px;
+    overflow:scroll;     /* if you don't want a scrollbar, set to hidden */
+    overflow-x:hidden;   /* hides horizontal scrollbar on newer browsers */
+
+    /* resize and min-height are optional, allows user to resize viewable area */
+    -webkit-resize:vertical; 
+    -moz-resize:vertical;
+    resize:vertical;
+    min-height:317px;
+}
+
+iframe.embed
+{
+    width:1000px;       /* set this to approximate width of entire page you're embedding */
+    height:2000px;      /* determines where the bottom of the page cuts off */
+    margin-left:-183px; /* clipping left side of page */
+    margin-top:-244px;  /* clipping top of page */
+    overflow:hidden;
+
+    /* resize seems to inherit in at least Firefox */
+    -webkit-resize:none;
+    -moz-resize:none;
+    resize:none;
+}
