@@ -3,12 +3,36 @@ require(shinyBS)
 require(shinydashboard)
 require(shinyjs)
 require(caret)
+require(plyr)
 require(dplyr)
 require(tidyr)
 require(Cairo)
 require(raster)
 require(gstat)
 require(wesanderson)
+require(nnet)
+require(randomForest)
+require(kernlab)
+require(klaR)
+require(vcd)
+
+# car, foreach, methods, plyr, nlme, reshape2, stats, stats4, utils, grDevices
+
+
+
+require(e1071)
+require(gam)
+require(ipred)
+require(MASS)
+require(ellipse)
+require(mda)
+require(mgcv)
+require(mlbench)
+require(party)
+require(MLmetrics)
+require(Cubist)
+require(testthat)
+
 
 
 data(meuse)
@@ -84,14 +108,7 @@ cls.mdls <- models$shortName[models$cls]
 names(cls.mdls) <- models$longName[models$cls]
 
 # TODO --------------------------------------------------------------------
-# (To get it uploaded bare min)
 
-# default state
-# github
-# test on upload
-
-
-# phase 2
 # match colors w value box
 # data description
 # transform y-var
@@ -197,16 +214,16 @@ server <- function(input, output,session) {
   
 
   
+
   observeEvent(input$btn_train,{
   
     disable('btn_train')
     on.exit(enable('btn_train'))
     
-    mdls <- input$slt_algo
+    mdls <- isolate(input$slt_algo)
     
     fitControl <- trainControl(method = "cv",savePredictions = T,
                                number = as.integer(input$rdo_CVtype))
-    
     
     train2 <- function(method){
       switch(modelType,
@@ -229,9 +246,9 @@ server <- function(input, output,session) {
       
     }
     
-    CVtune <- lapply(mdls,train2)
-    names(CVtune) <- mdls
-    CVtune<<-CVtune
+    tune <- lapply(mdls,train2)
+    names(tune) <- mdls
+    CVtune<<-tune
     # saveRDS(CVtune,'initState.Rdata')
     
   })
@@ -563,7 +580,7 @@ ui <- bootstrapPage(useShinyjs(),
                           id = "tabs",
                           menuItem("Step 1: Input Data", tabName = "setup", icon = icon("cog")),
                           menuItem("Step 2: Training & CV",tabName = "model", icon = icon("sitemap"),selected = T),
-                          menuItem("Step 3: Model Performance",tabName = "test", icon = icon("sitemap"))
+                          menuItem("Step 3: Model Performance",tabName = "test", icon = icon("bar-chart"))
                           # menuItem("Feature selection", icon = icon("align-left", lib = "glyphicon"),
                           # menuSubItem("Boruta", tabName = "boruta"),
                           # menuSubItem("Sequential backward selection",
@@ -594,7 +611,7 @@ ui <- bootstrapPage(useShinyjs(),
                           draggable = F,
                           width='100%',
                           height='auto',
-                          a(icon('github fa-2x'),href='https://github.com/davesteps/homebrewR',target='_blank')
+                          a(icon('github fa-2x'),href='https://github.com/davesteps/machLearn',target='_blank')
                         )                  
                       ),
                       dashboardBody(
@@ -629,7 +646,7 @@ ui <- bootstrapPage(useShinyjs(),
                                   column(width=3,
                                          box(width = 12,title = 'Model Options',solidHeader = T,status = 'primary',
                                              selectInput('slt_algo',label = 'Algorithm:'%>%label.help('lbl_algo'),
-                                                         ,choices = reg.mdls,selected = reg.mdls,multiple=T),
+                                                         choices = reg.mdls,selected = reg.mdls,multiple=T),
                                              selectizeInput('slt_Tune','Parameter Tuning'%>%label.help('lbl_Tune'),
                                                             choices = c('Coarse auto-tune (fast)','Fine auto-tune (slow)','manual')),
                                              # actionButton('btn_tune',label = 'Tuning Options',icon = icon('sliders')
