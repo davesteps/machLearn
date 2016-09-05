@@ -12,14 +12,15 @@ require(gstat)
 require(wesanderson)
 require(nnet)
 require(randomForest)
-require(kernlab)
-require(klaR)
-require(vcd)
 
 # car, foreach, methods, plyr, nlme, reshape2, stats, stats4, utils, grDevices
 
 
-
+# Not all of these are required but shinyapps.io was crashing and 
+# importing one of these solved the issue
+require(kernlab)
+require(klaR)
+require(vcd)
 require(e1071)
 require(gam)
 require(ipred)
@@ -137,7 +138,7 @@ names(cls.mdls) <- models$longName[models$cls]
 
 server <- function(input, output,session) {
   
-  # CVtune <- CVtune
+
   CVtune <- readRDS('initState.Rdata')
   makeReactiveBinding('CVtune')
   
@@ -158,7 +159,7 @@ server <- function(input, output,session) {
   dataTrain <- NULL
   dataTest <- NULL
   
-  # makeReactiveBinding('dataTrain')
+  makeReactiveBinding('dataTrain')
   # makeReactiveBinding('dataTest')
   modelType <- 'Regression'
 
@@ -392,13 +393,13 @@ server <- function(input, output,session) {
     
     lab <- ifelse(isolate(modelType)=='Regression','Variance explained','Accuracy')
     
-    valueBox(paste(round(testPreds()$s1*100,1),'%'),lab,icon = icon('bullseye'))
+    valueBox(paste(round(testPreds()$s1*100,1),'%'),lab,icon = icon('cube'))
     
   })
   
   output$testsetS2<- renderValueBox({
     lab <- ifelse(isolate(modelType)=='Regression','RMSE','Kappa')
-    valueBox(round(testPreds()$s2,3),subtitle = lab,icon = icon('bullseye'))
+    valueBox(round(testPreds()$s2,3),subtitle = lab,icon = icon('cube'))
   })
   
   
