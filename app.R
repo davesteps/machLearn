@@ -1,144 +1,11 @@
-library(shiny)
-require(shinyBS)
-require(shinydashboard)
-require(shinyjs)
-require(caret)
-require(plyr)
-require(dplyr)
-require(tidyr)
-require(Cairo)
-require(raster)
-require(gstat)
-require(wesanderson)
-require(nnet)
-require(randomForest)
+source('init.R',local = T)
 
-# car, foreach, methods, plyr, nlme, reshape2, stats, stats4, utils, grDevices
-
-
-# Not all of these are required but shinyapps.io was crashing and 
-# importing one of these solved the issue
-require(kernlab)
-require(klaR)
-require(vcd)
-require(e1071)
-require(gam)
-require(ipred)
-require(MASS)
-require(ellipse)
-require(mda)
-require(mgcv)
-require(mlbench)
-require(party)
-require(MLmetrics)
-require(Cubist)
-require(testthat)
-
-
-
-data(meuse)
-
-dmnds <- diamonds[sample(1:nrow(diamonds),1e3),]
-
-datasets <- list(
-  'iris'=iris,
-  'cars'=mtcars,
-  'meuse'=meuse,
-  'diamonds'=data.frame(dmnds),
-  'midwest'=data.frame(midwest),
-  'mpg'=data.frame(mpg),
-  'msleep'=data.frame(msleep),
-  'txhousing'=data.frame(txhousing)
-)
-
-tuneParams <- list(
-  'svmLinear'=data.frame(C=c(0.01,0.1,1)),
-  'svmPoly'= expand.grid(degree=1:3,scale=c(0.01,0.1),C=c(0.25,0.5,1)),
-  'nnet'=expand.grid(size=c(1,3,5),decay=c(0.01,0.1,1)),
-  'rf'=data.frame(mtry=c(2,3,4)),
-  'knn'=data.frame(k=c(5,7,9)),
-  'nb'=expand.grid(usekernel=c(T,F),adjust=c(0.01,0.1,1),fL=c(0.01,0.1,1))
-  # 'glm'=data.frame(),
-  # 'gam'=data.frame(),
-)
-
-
-models <- data.frame(stringsAsFactors = F,
-                     shortName = c('svmLinear','svmPoly','nnet','rf','knn','nb','glm','gam'),
-                     longName =  c('svmLinear','svmPoly','Neural Network','randomForest',
-                                   'k-Nearest Neighbors','Naive Bayes','GLM',
-                                   'GAM'),
-                     reg =       c(T,T,T,T,F,F,F,F),
-                     cls =       c(T,T,T,T,T,T,F,F)
-)
-
-# 
-pal <- c('#b2df8a','#33a02c','#ff7f00','#cab2d6','#b15928',
-         '#fdbf6f','#a6cee3','#fb9a99','#1f78b4','#e31a1c')
-set.seed(3)
-pal <- sample(pal,nrow(models),F)
-names(pal) <- models$shortName
-
-modelCSS <-   function(item,col){
-  tags$style(HTML(paste0(".selectize-input [data-value=\"",item,"\"] {background: ",col," !important}")))
-}
-
-
-tableCSS <- function(model,col){
-  paste0('if (data[6] == "',model,'")
-    $("td", row).css("background", "',col,'");')
-}  
-
-label.help <- function(label,id){
-  HTML(paste0(label,actionLink(id,label=NULL,icon=icon('question-circle'))))
-}
-
-
-
-
-# modelpal <- lapply(1:nrow(models),function(i) modelCSS(models$longName[i],pal[i])) %>% 
-# paste(.,collapse = ' ')
-
-# modelpal
-
-
-
-reg.mdls <- models$shortName[models$reg]
-names(reg.mdls) <- models$longName[models$reg]
-cls.mdls <- models$shortName[models$cls]
-names(cls.mdls) <- models$longName[models$cls]
-
-# TODO --------------------------------------------------------------------
-
-# match colors w value box
-# data description
-# transform y-var
-# full compliment of algos with fast/slow tuning params
-# progress bar
-# Draw eye to setup box
-# add a few more data sets
-# Instructions on training page
-# supresswarnings in train
-# signifacne testing to choose models in ensemble
-
-# Features/issues:
-# class levels not in test/train
-# feature selection
-# Parital Dependancy plots
-# variable importance??
-# pre-processing - some algos require
-# weights
-# tuning metric, unbalanced classes etc
-# reasonable values to search over
-# how to handle probability outputs
-# model specific outputs?
-# build tunning params from data
 
 # Server ------------------------------------------------------------------
 
 server <- function(input, output,session) {
   
-
+  
   CVtune <- readRDS('initState.Rdata')
   makeReactiveBinding('CVtune')
   
@@ -162,7 +29,7 @@ server <- function(input, output,session) {
   makeReactiveBinding('dataTrain')
   # makeReactiveBinding('dataTest')
   modelType <- 'Regression'
-
+  
   makeReactiveBinding('modelType')
   
   observeEvent(modelType,{
@@ -194,6 +61,7 @@ server <- function(input, output,session) {
     
     df2 <- cbind(y,X)[yi&Xi,]
     
+    
     c <- class(df2$y)
     lvls <- length(unique(df2$y))
     if(lvls<10|(c!='numeric'&c!='integer')){
@@ -201,6 +69,7 @@ server <- function(input, output,session) {
       df2$y <- factor(df2$y)
     } else {
       modelType <<-'Regression'
+      if(input$chk_logY){df2$y <- log(df2$y+0.1)}
     }
     
     trainIndex <- createDataPartition(df2$y,
@@ -213,11 +82,11 @@ server <- function(input, output,session) {
     })
   })
   
-
   
-
+  
+  
   observeEvent(input$btn_train,{
-  
+    
     disable('btn_train')
     on.exit(enable('btn_train'))
     
@@ -226,50 +95,84 @@ server <- function(input, output,session) {
     fitControl <- trainControl(method = "cv",savePredictions = T,
                                number = as.integer(input$rdo_CVtype))
     
-    train2 <- function(method){
-      switch(modelType,
-             'Regression'=train(y ~ .,
-                                data = dataTrain,
-                                preProcess = c('scale','center'),
-                                method = method,
-                                trControl = fitControl,
-                                tuneGrid=tuneParams[[method]],
-                                linout=T
-             ),
-             'Classification'=train(y ~ .,
-                                    data = dataTrain,
-                                    preProcess = c('scale','center'),
-                                    method = method,
-                                    trControl = fitControl,
-                                    tuneGrid=tuneParams[[method]]
-             )
-      )
-      
-    }
+    trainArgs <- list(
+      'svmLinear'=list(form=y ~ .,
+                       data = dataTrain,
+                       preProcess = c('scale','center'),
+                       method = 'svmLinear',
+                       trControl = fitControl,
+                       tuneGrid=tuneParams[['svmLinear']]),
+      'svmPoly'= list(form=y ~ .,
+                      data = dataTrain,
+                      preProcess = c('scale','center'),
+                      method = 'svmPoly',
+                      trControl = fitControl,
+                      tuneGrid=tuneParams[['svmPoly']]),
+      'nnet'=list(form=y ~ .,
+                  data = dataTrain,
+                  preProcess = c('scale','center'),
+                  method = 'nnet',
+                  trControl = fitControl,
+                  tuneGrid=tuneParams[['nnet']],
+                  linout=T),
+      'rf'=list(form=y ~ .,
+                data = dataTrain,
+                preProcess = c('scale','center'),
+                method = 'rf',
+                trControl = fitControl,
+                tuneGrid=tuneParams[['rf']],
+                ntree=1e3),
+      'knn'=list(form=y ~ .,
+                 data = dataTrain,
+                 preProcess = c('scale','center'),
+                 method = 'knn',
+                 trControl = fitControl,
+                 tuneGrid=tuneParams[['knn']]),
+      'nb'=list(form=y ~ .,
+                data = dataTrain,
+                preProcess = c('scale','center'),
+                method = 'nb',
+                trControl = fitControl,
+                tuneGrid=tuneParams[['nb']]),
+      'glm'=list(form=y ~ .,
+                 data = dataTrain,
+                 preProcess = c('scale','center'),
+                 method = 'glm',
+                 trControl = fitControl,
+                 tuneGrid=NULL),
+      'gam'=list(form=y ~ .,
+                 data = dataTrain,
+                 preProcess = c('scale','center'),
+                 method = 'gam',
+                 trControl = fitControl)
+    )
     
-    tune <- lapply(mdls,train2)
+    tune <- lapply(mdls,function(m){
+      do.call('train',trainArgs[[m]])
+    })
+    
     names(tune) <- mdls
-    CVtune<<-tune
+    CVtune <<- tune
     # saveRDS(CVtune,'initState.Rdata')
     
   })
   
   
   CVres <- reactive({
-    mdls <- isolate(input$slt_algo)
+
     if(is.null(CVtune)) return(NULL)
     
     fits <- CVtune
     getRes <- function(i){
-      name <- mdls[i]
+      name <- names(fits)[i]
       res <- fits[[i]]$results
       df <- res[(ncol(res)-3):ncol(res)]
       apply(res,1,function(r) paste(r[1:(ncol(res)-4)],collapse = '-')) %>% 
         paste(name,.,sep='-') -> model
-      cbind.data.frame(model,df,name,stringsAsFactors =F)
+      cbind.data.frame(model,df,name=name[[1]],stringsAsFactors =F)
     }
     
-    df <- plyr::ldply(1:length(mdls),getRes)
+    df <- plyr::ldply(1:length(fits),getRes)
     
     if(isolate(modelType)=='Regression'){
       df$rank <- rank(rank(df$RMSE)+rank(1-df$Rsquared),ties.method = 'first')
@@ -282,23 +185,26 @@ server <- function(input, output,session) {
   
   CVpredObs <- reactive({
     
-    mdls <- isolate(input$slt_algo)
-    
     fits <- CVtune
-    
+
     getObsPred <- function(i){
       # i <- 2
       bst <- fits[[i]]$bestTune
       preds <- fits[[i]]$pred
-      preds$name <- mdls[i]
-      preds$model <- paste(bst,collapse = '-') %>% paste(mdls[i],.,sep='-')
-      ii <- lapply(1:length(bst),function(i)preds[names(bst)[i]]==bst[i][[1]])
+      preds$name <- names(fits)[i]
+      preds$model <- paste(bst,collapse = '-') %>% paste(names(fits)[i],.,sep='-')
+      
+      ii <- lapply(1:length(bst),function(p){
+        preds[names(bst)[p]]==as.character(bst[p][[1]])
+      })
       if(length(bst)>1) data.frame(ii) %>% apply(.,1,all) -> ii else unlist(ii) ->ii
       preds[ii,-which(names(preds)%in%names(bst))]
     }
     
-    plyr::ldply(1:length(mdls),getObsPred)
-    
+    df <- plyr::ldply(1:length(fits),getObsPred)
+    str(df)
+    # saveRDS(df,'CVpredObs.Rdata')
+    df
     
   })
   
@@ -343,15 +249,53 @@ server <- function(input, output,session) {
   })
   
   
+  makeReactiveBinding('sigTable')
+  observeEvent(input$btn_sigTest,{
+    
   
+    permute <- function(v1,v2,nreps=1e4){
+      rmsq <- function(v){sqrt(mean(v^2))}
+      obs.diff = (rmsq(v1) - rmsq(v2))
+      v12 = c(v1, v2)
+      l12 = length(v12)
+      l1 = length(v1)
+      
+      sim.diff = rep(0, nreps)
+      for (j in 1:nreps) {
+        perm = sample(v12)
+        sim.diff[j] = rmsq(perm[1:l1]) - rmsq(perm[(l1 + 1):l12])
+      }
+      bigger = sim.diff[(sim.diff) >= obs.diff]
+      pvalue = length(bigger)/(nreps)
+      pvalue
+    }
+      
+    # df <- readRDS('CVpredObs.Rdata')
+    df <- CVpredObs()
+    bst <- names(topModels())[[1]]
+    print(bst)
+    best <- df$pred[df$model==bst]-df$obs[df$model==bst]
+    
+    sigTable <<- df %>% #filter(model!=bst) %>% 
+      group_by(model) %>% 
+      summarise(`p-value`=permute(pred-obs,best)) %>% 
+      .[rev(order(.$'p-value')),]
+  
+
+  })
   
   
   
   # Outputs ---------------------------------------------------------------------
   
+  output$sgTable <- renderTable({
+    sigTable
+  })
+  
+  
   output$testsetPlot <- renderPlot({
     
-
+    
     df <- data.frame(obs=dataTest$y,pred=testPreds()$c)
     
     col <- pal[topModels()[[1]]]
@@ -405,13 +349,14 @@ server <- function(input, output,session) {
   
   
   
-  output$rawdata <- DT::renderDataTable(rawdata())
+  output$rawdata <- renderDataTable({rawdata()},
+                                    options = list(pageLength = 10,searching = FALSE))
   
   output$model_info <- renderDataTable({
     CVres()[c(7,1:6)]
     
   },    options = list(rowCallback = I(
-    lapply(1:nrow(models),function(i) tableCSS(models$shortName[i],pal[i])) %>% 
+    lapply(1:length(mdls),function(i) tableCSS(mdls[i],pal[i])) %>% 
       unlist %>% 
       paste(.,collapse = '') %>% 
       paste('function(row, data) {',.,'}')
@@ -425,6 +370,7 @@ server <- function(input, output,session) {
     
     type <- isolate(modelType)
     df <-CVpredObs()
+
     if(type=='Regression'){
       lims <- c(min(df$obs),max(df$obs))
       ggplot(df)+
@@ -501,6 +447,7 @@ server <- function(input, output,session) {
     
   })
   
+  output$Ytype <- renderText(class(dataTrain$y))
   output$txt_dataset <- renderPrint(cat('Dataset:',input$dataset))
   output$txt_n <- renderPrint(cat('n obs:',nrow(rawdata())))
   output$txt_Yvar <- renderPrint(cat('Y var:',input$yvar))
@@ -525,7 +472,13 @@ server <- function(input, output,session) {
   })
   
   
-
+  
+  
+  output$Ystats <- renderPrint({
+    
+    summary(dataTrain$y)
+    
+  })
   
   output$Yplot <- renderPlot({
     
@@ -554,6 +507,22 @@ server <- function(input, output,session) {
     
   })
   
+  output$featImp <- renderPlot({
+    
+    rf <- randomForest(y~.,dataTrain)
+    vi <- as.data.frame(varImpPlot(rf))
+    vi$Feature <- row.names(vi)
+    names(vi)[1] <- 'Score'
+    vi$Feature <- factor(vi$Feature,levels=vi$Feature[order(vi$Score)])
+  str(vi)  
+    ggplot(vi,aes(x=Feature,y=Score))+
+      geom_bar(stat='identity',fill="#5BBCD6")+
+      coord_flip()+
+      xlab('')+
+      ylab('Relative Importance Score')
+    
+  })
+  
   
 }
 
@@ -568,7 +537,7 @@ ui <- bootstrapPage(useShinyjs(),
                     tagList(tags$head(
                       tags$link(rel="stylesheet", type="text/css",href="style.css"),
                       tags$script(type="text/javascript", src = "busy.js"),
-                      lapply(1:nrow(models),function(i) modelCSS(models$shortName[i],pal[i]))
+                      lapply(1:length(mdls),function(i) modelCSS(mdls[i],pal[i]))
                       
                     )),
                     
@@ -581,11 +550,10 @@ ui <- bootstrapPage(useShinyjs(),
                           id = "tabs",
                           menuItem("Step 1: Input Data", tabName = "setup", icon = icon("cog")),
                           menuItem("Step 2: Training & CV",tabName = "model", icon = icon("sitemap"),selected = T),
-                          menuItem("Step 3: Model Performance",tabName = "test", icon = icon("bar-chart"))
-                          # menuItem("Feature selection", icon = icon("align-left", lib = "glyphicon"),
-                          # menuSubItem("Boruta", tabName = "boruta"),
-                          # menuSubItem("Sequential backward selection",
-                          # tabName = "SBS")),
+                          menuItem("Step 3: Model Performance",tabName = "test", icon = icon("bar-chart")),
+                          menuItem("Exploration", icon = icon(">>"),
+                                   menuSubItem("Feature Importance",tabName = "imp"))
+                                   # menuSubItem("Feature Selection", tabName = "boruta"))
                           # 
                           # menuItem("Feature Importance",tabName = "featSel", icon = icon("sitemap"))
                           # menuItem("Info",tabName = "Info", icon = icon("info"))
@@ -602,9 +570,6 @@ ui <- bootstrapPage(useShinyjs(),
                                  
                           ),
                           column(width=1)
-                          
-                          
-                          
                         ),
                         absolutePanel(
                           bottom = 10,
@@ -618,26 +583,41 @@ ui <- bootstrapPage(useShinyjs(),
                       dashboardBody(
                         tabItems(
                           tabItem("setup",
-                                  box(width = 4,title = 'Input Data',solidHeader = T,status = 'primary',
+                                  box(width = 4,title = 'Input Dataset',solidHeader = T,status = 'primary',
                                       selectInput('dataset',label = 'Choose Dataset',
                                                   choices = names(datasets),selected='iris'),
-                                      # fileInput('fileIn',label = 'Upload Dataset:') %>% disabled(),
+                                      fileInput('fileIn',label = 'Upload data') %>% disabled(),
+                                      actionButton('btn_viewData',label = 'View Data',icon=icon('table')),
+                                      hr(),
                                       
-                                      selectizeInput('yvar',label=label.help('Y (Variable to predict):','lbl_yvar'),choices = character(0)),
-                                      bsTooltip(id = "lbl_yvar", title = "Variable to predict", 
-                                                placement = "right", trigger = "hover"),
-                                      selectizeInput('xvar',label=label.help('X (Predict Y as function of):','lbl_xvar'),choices = character(0),multiple = T),
-                                      bsTooltip(id = "lbl_xvar", title = "Try and predict Y as function of these variables", 
-                                                placement = "right", trigger = "hover"),
+                                      
                                       sliderInput('sld_testsplit',label = label.help('Test set %','lbl_testsplit'),min = 33,max = 90,step = 1,value = 33),
                                       bsTooltip(id = "lbl_testsplit", title = "% of data to set aside for test data", 
-                                                placement = "right", trigger = "hover"),
-                                      hr(),
-                                      plotOutput('Yplot',height=260)
+                                                placement = "right", trigger = "hover")
+                                      
                                       
                                   ),
-                                  box(width=8,
-                                      DT::dataTableOutput('rawdata')
+                                  box(width=4,title = 'y variable',solidHeader = T,status = 'primary',
+                                      helpText('Select the variable we would like to predict'),
+                                      selectizeInput('yvar',label=label.help('y var','lbl_yvar'),choices = character(0)),
+                                      helpText(HTML(paste('data type:', textOutput('Ytype')))),
+                                      bsTooltip(id = "lbl_yvar", title = "Variable to predict", 
+                                                placement = "right", trigger = "hover"),
+                                      hr(),
+                                      plotOutput('Yplot',height=260),
+                                      conditionalPanel("output.Ytype == 'numeric'|output.Ytype == 'integer'",
+                                                       checkboxInput('chk_logY',label = 'log transform')
+                                      ),
+                                      verbatimTextOutput('Ystats')
+                                      
+                                  ),
+                                  box(width=4,title = 'X vars',solidHeader = T,status = 'primary',
+                                      selectizeInput('xvar',label=label.help('X (Predict Y as function of):','lbl_xvar'),choices = character(0),multiple = T),
+                                      bsTooltip(id = "lbl_xvar", title = "Try and predict Y as function of these variables", 
+                                                placement = "right", trigger = "hover")
+                                  ),
+                                  bsModal('data',title = 'Dataset',trigger = 'btn_viewData',size = 'large',
+                                          dataTableOutput('rawdata')
                                   )
                           ),
                           tabItem("model",
@@ -696,6 +676,16 @@ ui <- bootstrapPage(useShinyjs(),
                                                   
                                                   dataTableOutput('model_info')
                                          )
+                                         # tabPanel(title = 'CV Sig testing',
+                                         #          h4('Statisical significance of cross-validation results'),
+                                         #          helpText('Perform permutation test of error statisic to determine
+                                         #                   whether the score of the best model was significantly higher
+                                         #                   than the other candidates.'),
+                                         #          actionButton('btn_sigTest',label = 'Perform permutation test'),
+                                         #          tableOutput('sgTable')
+                                         #          
+                                         #          
+                                         # )
                                   )
                           ),
                           tabItem("test",
@@ -704,9 +694,9 @@ ui <- bootstrapPage(useShinyjs(),
                                              # radioButtons('rdo_finalModel','Final model',
                                              #              c('Best Model','Ensemble of top models')),
                                              selectInput('slt_Finalalgo',label = 'Final Model:'%>%label.help('lbl_Finalalgo'),
-                                                         choices=models$shortName,multiple=T),
-                                             helpText('The best candidate model from cross-validation is used by default. 
-                                               Select multiple models to use ensemble predictions of best performing candidates'),
+                                                         choices=mdls,multiple=T),
+                                             helpText('The best cross-validated model is selected by default. 
+                                                Multiple models can be selected to make ensemble predictions'),
                                              bsTooltip(id = "lbl_Finalalgo", title = "Which algorithms to use to predict test", 
                                                        placement = "right", trigger = "hover")
                                              
@@ -717,6 +707,13 @@ ui <- bootstrapPage(useShinyjs(),
                                   box(width = 6,title = 'Test Set observed vs Predicted',
                                       solidHeader = T,status = 'primary',
                                       plotOutput('testsetPlot')
+                                  )
+                          ),
+                          tabItem("imp",
+                                  box(width = 6,title = 'Feature importance',
+                                      helpText('Relative feature importance indicated from randomForest'),
+                                      
+                                      plotOutput('featImp')
                                   )
                           )
                         )
