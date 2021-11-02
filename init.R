@@ -56,29 +56,38 @@ datasets <- list(
 
 tuneParams <- list(
   'svmLinear'=data.frame(C=c(0.01,0.1,1)),
-  'svmPoly'= expand.grid(degree=1:3,scale=c(0.01,0.1),C=c(0.25,0.5,1)),
-  'nnet'=expand.grid(size=c(1,3,5),decay=c(0.01,0.1,1)),
+  'svmRadial'= expand.grid(C = c(0.5,0.6,0.7,0.8),sigma=c(0.1,0.2,0.3,0.4,0.5)),
   'rf'=data.frame(mtry=c(2,3,4)),
   'knn'=data.frame(k=c(1,3,5,7,9)),
-  'nb'=expand.grid(usekernel=c(T,F),adjust=c(0.01,0.1,1),fL=c(0.01,0.1,1)),
-  'glm'=NULL#data.frame()
-)
+  'nb'=expand.grid(usekernel=c(T,F),adjust=c(0.01,0.1,1),fL=c(0.01,0.1,1))
+  # ,'xgboost' = expand.grid(nrounds = 1000,
+  #                         eta = c(0.01, 0.001, 0.0001),
+  #                         max_depth = c(2, 4, 6, 8, 10),
+  #                         gamma = 1,
+  #                         colsample_bytree = 0.75,
+  #                         min_child_weight = 0,
+  #                         subsample = 0.5)
+  )
 
 
 mdls <- list('svmLinear'='svmLinear',
-             'svmPoly'='svmPoly',
-             'Neural Network'='nnet',
+             'svmRadial'='svmRadial',
              'randomForest'='rf',
              'k-NN'='knn',
-             'Naive Bayes'='nb',
-             'GLM'='glm',
-             'GAM'='gam')
+             'Naive Bayes'='nb'
+             # ,'xgboost'='xgboost'
+             )
 #multinom
 
 mdli <- list(
-  'Regression'=c(T,T,T,T,T,F,T,F),
-  'Classification'=c(T,T,T,T,T,T,F,F)
-)  
+  'Regression'=c(T,T,T,T,F),
+  'Classification'=c(T,T,T,T,T)
+) 
+
+# mdli <- list(
+#   'Regression'=c(T,T,T,T,F,T),
+#   'Classification'=c(T,T,T,T,T,T)
+# )  
 
 reg.mdls <- mdls[mdli[['Regression']]]
 cls.mdls <- mdls[mdli[['Classification']]]
